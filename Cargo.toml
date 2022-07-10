@@ -1,0 +1,31 @@
+[package]
+name = "voxel"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["color"]
+no-color = ["colored/no-color"]
+color = ["tracing-subscriber/ansi"]
+
+[dependencies]
+
+# cg
+vulkano = "0.29.0"
+vulkano-shaders = "0.29.0"
+vulkano-win = "0.29.0"
+winit = "0.26.1"
+
+# error-handling
+anyhow = "1.0.58"
+
+# logging
+tracing = "0.1.35"
+tracing-subscriber = { version = "0.3.14", default-features = false, features = ["tracing-log", "std", "local-time","fmt"] }
+colored = "2.0.0"
+time = { version = "0.3.11", features = ["macros", "local-offset"] }
+chrono = "0.4.19"
+
+# tool
+bytemuck = { version = "1.10.0", features = ["derive", "extern_crate_std", "min_const_generics"] }
+cgmath = "0.18.0"
