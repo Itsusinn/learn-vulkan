@@ -7,7 +7,7 @@ use tracing::{error, info};
 use vulkano::{
   buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess},
   command_buffer::{
-    sys::RenderPassBeginInfo, AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents,
+    AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents,
   },
   device::{
     physical::{PhysicalDevice, PhysicalDeviceType},
@@ -24,7 +24,7 @@ use vulkano::{
     },
     GraphicsPipeline,
   },
-  render_pass::{self, Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
+  render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
   swapchain::{
     acquire_next_image, AcquireError, Swapchain, SwapchainCreateInfo, SwapchainCreationError,
   },
@@ -44,6 +44,10 @@ fn main() -> anyhow::Result<()> {
 
 fn run() -> anyhow::Result<()> {
   let require_extensions = vulkano_win::required_extensions();
+  // 第一步，实例和物理设备选择
+  // vulkan instance是vulkan一切API的入口点
+  // 创建VkInstace后，可以查询VK支持的硬件，
+  // 选中其中一个或多个PhysicalDevice进行操作
   let instance = Instance::new(InstanceCreateInfo {
     application_name: Some(env!("CARGO_PKG_NAME").to_owned()),
     enabled_extensions: require_extensions,
@@ -58,7 +62,7 @@ fn run() -> anyhow::Result<()> {
     khr_swapchain: true,
     ..DeviceExtensions::none()
   };
-
+  // 通过查询设备属性选择一个合适的PhysicalDevice
   let (physical_device, queue_family) = PhysicalDevice::enumerate(&instance)
     .filter(|&p| p.supported_extensions().is_superset_of(&device_extensions))
     .filter_map(|p| {
@@ -79,7 +83,9 @@ fn run() -> anyhow::Result<()> {
     physical_device.properties().device_name,
     physical_device.properties().device_type,
   );
-
+  // 第二步，逻辑设备与队列
+  // 1. 使用更详细的PhysicalDevice特性创建一个逻辑设备
+  // 2. 指定队列族，VK将绘制指令，内存操作提交到队列中，异步执行
   let (device, mut queues) = Device::new(
     physical_device,
     DeviceCreateInfo {
@@ -92,6 +98,11 @@ fn run() -> anyhow::Result<()> {
   )?;
   let queue = queues.next().ok_or(anyhow::anyhow!("No available queue"))?;
 
+  // 第三步，交换链与窗口表面
+  // 我们需要创建一个窗口来显示渲染的图像
+  // 交换链是一个渲染目标集合。它可以保证我们正在渲染的图像和当前屏幕图像是两个不同的图像。
+  // 这可以确保显示出来的图像是完整的。每次绘制一帧时,可以请求交换链提供一张图像。
+  // 绘制完成后,图像被返回到交换链中,在之后某个时刻,图像被显示到屏幕上。
   let (mut swapchain, images) = {
     let surface_capabilities =
       physical_device.surface_capabilities(&surface, Default::default())?;
@@ -162,6 +173,8 @@ fn run() -> anyhow::Result<()> {
   let vs = vs::load(device.clone())?;
   let fs = fs::load(device.clone())?;
 
+  // 渲染流程
+  // 渲染流程描述了渲染操作使用的图像类型,图像的使用方式,图像的内容如何处理。
   let render_pass = vulkano::single_pass_renderpass!(
     device.clone(),
     attachments: {
@@ -178,6 +191,8 @@ fn run() -> anyhow::Result<()> {
     }
   )?;
 
+  // 图形管线
+  // 图形管线描述了显卡的可配置状态, 以及使用着色器的可编程状态
   let pipeline = GraphicsPipeline::start()
     .vertex_input_state(BuffersDefinition::new().vertex::<Vertex>())
     .vertex_shader(vs.entry_point("main").unwrap(), ())
@@ -193,6 +208,8 @@ fn run() -> anyhow::Result<()> {
     depth_range: 0.0..1.0,
   };
 
+  // 帧缓冲
+  // 从交换链获取图像后,还不能直接在图像上进行绘制,需要将图像包装进帧缓冲中去。
   let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut viewport);
 
   let mut recreate_swapchain = false;
@@ -261,7 +278,7 @@ fn run() -> anyhow::Result<()> {
         .bind_pipeline_graphics(pipeline.clone())
         .bind_vertex_buffers(0, vertex_buffer.clone())
         .draw(vertex_buffer.len() as u32, 1, 0, 0)
-        .ugnwrap()
+        .unwrap()
         .end_render_pass()
         .unwrap();
 
